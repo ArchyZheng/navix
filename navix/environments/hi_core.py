@@ -125,7 +125,7 @@ class Hi_Core_task_1(Environment):
             self.width > 4
         ), f"Room width must be greater than 5, got {self.width} instead"
 
-        key, k1, k2, k3, k4, k5 = jax.random.split(key, 6)
+        key, k1, k2, k3, k4, k5, k6, k7 = jax.random.split(key, 8)
 
         grid = room(height=self.height, width=self.width)
 
@@ -141,7 +141,7 @@ class Hi_Core_task_1(Environment):
             door_pos = jnp.asarray((door_row, door_col))
             doors.append(Door.create(
                 position=door_pos,
-                requires=jnp.asarray(3),
+                requires=jnp.asarray(i),
                 open=jnp.asarray(False),
                 colour=random_colour(random_key[i]),
             ))
@@ -174,6 +174,7 @@ class Hi_Core_task_1(Environment):
             grid, begin_row=7, end_row=8
         )
 
+        room_1 = jnp.where(room_1, grid, -1) 
         room_2 = jnp.where(room_2, grid, -1) 
         room_3 = jnp.where(room_3, grid, -1) 
         
@@ -194,12 +195,28 @@ class Hi_Core_task_1(Environment):
         # goal
         goal = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
         doors = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *doors)
+        # keys
+        keys = []
+        key_1 = Key.create(
+            position=random_positions(k6, room_2, exclude=player_pos),
+            id=doors[0].requires,
+            colour=doors[0].colour,
+        )
+        keys.append(key_1)
+        key_2 = Key.create(
+            position=random_positions(k7, room_1),
+            id=doors[1].requires,
+            colour=doors[1].colour,
+        )
+        keys.append(key_2)
+        keys = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *keys)
 
         entities = {
             "door": doors,
             "player": player[None],
             "goal": goal[None],
             "wall": walls,
+            "key": keys,
         }
 
         # systems

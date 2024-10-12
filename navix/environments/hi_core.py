@@ -1,4 +1,3 @@
-# %%
 from typing import Union
 import jax
 import jax.numpy as jnp
@@ -247,6 +246,156 @@ def mask_for_task_1(grid, begin_row, end_row):
     final_mask = jnp.asarray(jnp.logical_and(mask, mask_1), dtype=jnp.int32)
     return final_mask
 
+class Hi_Core_task_2(Environment):
+    random_start: bool = struct.field(pytree_node=False, default=False)
+
+    def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
+        # check minimum height and width
+        assert (
+            self.height > 3
+        ), f"Room height must be greater than 3, got {self.height} instead"
+        assert (
+            self.width > 4
+        ), f"Room width must be greater than 5, got {self.width} instead"
+
+        key, k1, k2, k3, k4, k5, k6, k7, k8, k9 = jax.random.split(key, 10)
+
+        grid = room(height=self.height, width=self.width)
+
+        # separate rooms
+        room_1 = mask_for_task_2(
+            grid, left_upper_corner=(1, 1), right_lower_corner=(2, 2)
+        )
+        room_2 = mask_for_task_2(
+            grid, left_upper_corner=(1, 7), right_lower_corner=(2 , 8)
+        )
+        room_3 = mask_for_task_2(
+            grid, left_upper_corner=(7, 1), right_lower_corner=(8, 8)
+        )
+        room_4: jnp.array = 1 - (room_1 + room_2 + room_3)
+        # wall part:
+        room_1_wall = room_1 - mask_for_task_2(
+            grid, left_upper_corner=(0, 0), right_lower_corner=(3, 3)
+        )
+        room_2_wall = room_2 - mask_for_task_2(
+            grid, left_upper_corner=(0, 6), right_lower_corner=(3, 9)
+        )
+        room_3_wall = room_3 - mask_for_task_2(
+            grid, left_upper_corner=(6, 0), right_lower_corner=(9, 9)
+        )
+        room_1_wall = -1 * room_1_wall + grid
+        room_2_wall = -1 * room_2_wall + grid
+        room_3_wall = -1 * room_3_wall + grid
+        room_wall = room_1_wall + room_2_wall + room_3_wall
+        room_1_wall = room_1_wall.at[(3, 3)].set(0)
+        room_2_wall = room_2_wall.at[(3, 6)].set(0)
+
+        room_1 = jnp.where(room_1, grid, -1) 
+        room_2 = jnp.where(room_2, grid, -1) 
+        room_3 = jnp.where(room_3, grid, -1) 
+        room_4 = jnp.where(room_4, grid, -1)
+        room_4 = jnp.where(room_wall == 0, room_4, -1)
+
+        # wall
+        wall_pos = jnp.stack(jnp.where(room_wall > 0), axis=1)
+        # door positions
+        # col can be between 1 and height - 2
+        doors = []
+        random_key = [k3, k4, k8,]
+        room_wall_list = [room_1_wall, room_2_wall, room_3_wall]
+        color_list = [PALETTE.YELLOW, PALETTE.GREEN, PALETTE.BLUE]
+        for i, room_wall in enumerate(room_wall_list):
+            # row can be between 1 and height - 2
+            # print(room_wall)
+            room_wall = jnp.where(room_wall > 0, 1, -1)
+            door_pos = random_positions(random_key[i], room_wall)
+            doors.append(Door.create(
+                position=door_pos,
+                requires=jnp.asarray(i),
+                open=jnp.asarray(False),
+                # colour=random_colour(random_key[i]),
+                colour=color_list[i],
+            ))
+            # wall_pos = jnp.delete(wall_pos, door_pos)
+
+        walls = Wall.create(position=wall_pos)
+        print(wall_pos)
+        
+        # agent and goal
+        if self.random_start:
+            player_pos = random_positions(k1, room_4)
+            direction = random_directions(k5)
+            goal_pos = random_positions(k2, room_3)
+        else:
+            goal_pos = jnp.asarray([self.height - 2, self.width - 2])
+            player_pos = jnp.asarray([1, 1])
+            direction = jnp.asarray(0)
+        player = Player.create(
+            position=player_pos,
+            direction=direction,
+            pocket=EMPTY_POCKET_ID,
+        )
+        # goal
+        goal = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
+        doors = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *doors)
+        # keys
+        keys = []
+        key_1 = Key.create(
+            position=random_positions(k6, room_4, exclude=player_pos),
+            id=doors[0].requires,
+            colour=doors[0].colour,
+        )
+        keys.append(key_1)
+        key_2 = Key.create(
+            position=random_positions(k7, room_1),
+            id=doors[1].requires,
+            colour=doors[1].colour,
+        )
+        keys.append(key_2)
+        key_3 = Key.create(
+            position=random_positions(k9, room_2),
+            id=doors[2].requires,
+            colour=doors[2].colour,
+        )
+        keys.append(key_3)
+        keys = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *keys)
+
+        entities = {
+            "wall": walls,
+            "door": doors,
+            "player": player[None],
+            "goal": goal[None],
+            "key": keys,
+        }
+
+        # systems
+        state = State(
+            key=key,
+            grid=grid,
+            cache=cache or RenderingCache.init(grid),
+            entities=entities,
+        )
+
+        return Timestep(
+            t=jnp.asarray(0, dtype=jnp.int32),
+            observation=self.observation_fn(state),
+            action=jnp.asarray(0, dtype=jnp.int32),
+            reward=jnp.asarray(0.0, dtype=jnp.float32),
+            step_type=jnp.asarray(0, dtype=jnp.int32),
+            state=state,
+        )
+
+def mask_for_task_2(grid, left_upper_corner: tuple, right_lower_corner: tuple):
+    mesh = jnp.mgrid[0 : grid.shape[0], 0 : grid.shape[1]]
+    cond_1 = jnp.greater(mesh[0], left_upper_corner[0] - 1)
+    cond_2 = jnp.less(mesh[0], right_lower_corner[0] + 1)
+    mask = jnp.asarray(jnp.logical_and(cond_1, cond_2), dtype=jnp.int32)
+    cond_3 = jnp.greater(mesh[1], left_upper_corner[1] - 1)
+    cond_4 = jnp.less(mesh[1], right_lower_corner[1] + 1)
+    mask_1 = jnp.asarray(jnp.logical_and(cond_3, cond_4), dtype=jnp.int32)
+    final_mask = jnp.asarray(jnp.logical_and(mask, mask_1), dtype=jnp.int32)
+    return final_mask
+
 register_env(
     "Hi_Core_task_0",
     lambda *args, **kwargs: Hi_Core_task_0.create(
@@ -274,4 +423,16 @@ register_env(
         **kwargs,
     ),
 )
-# %%
+register_env(
+    "Hi_Core_task_2",
+    lambda *args, **kwargs: Hi_Core_task_2.create(
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        height=10,
+        width=10,
+        random_start=True,
+        *args,
+        **kwargs,
+    ),
+)

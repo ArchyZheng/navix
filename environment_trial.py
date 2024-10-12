@@ -7,7 +7,8 @@ import navix.environments.hi_core
 
 # Create the environment
 env = nx.make('Hi_Core_task_2', observation_fn=nx.observations.rgb)
-key = jax.random.PRNGKey(666)
+# env = nx.make('Navix-KeyCorridorS3R3-v0', observation_fn=nx.observations.rgb)
+key = jax.random.PRNGKey(88)
 timestep = env.reset(key)
 
 def render(obs, title):
@@ -89,4 +90,16 @@ print("Batch size of the results", last_steps.reward.shape[0])
 for env_id in nx.registry():
     print(env_id)
 
+# %%
+import jax.numpy as jnp
+
+# %%
+a = jnp.asarray([[True], [False], [False]])
+k = jnp.asarray([[1, 2], [3, 4], [5, 6]])
+TRAL = jnp.asarray((0, -1), dtype=jnp.int32)
+# TRAL = jnp.tile(TRAL, (3, 1))
+# %%
+jnp.where(a, TRAL, k)
+# %%
+k[0]
 # %%

@@ -186,7 +186,7 @@ def pickup(state: State) -> State:
     key_found = positions_equal(position_in_front, keys.position)
 
     # update keys
-    positions = jnp.where(key_found, DISCARD_PILE_COORDS, keys.position)
+    positions = jnp.where(key_found.reshape(-1, 1), DISCARD_PILE_COORDS, keys.position)
     keys = keys.replace(position=positions)
 
     # update player's pocket, if the pocket has something else, we overwrite it

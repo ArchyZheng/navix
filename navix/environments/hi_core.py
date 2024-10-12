@@ -297,18 +297,17 @@ class Hi_Core_task_2(Environment):
         room_4 = jnp.where(room_wall == 0, room_4, -1)
 
         # wall
-        wall_pos = jnp.stack(jnp.where(room_wall > 0), axis=1)
         # door positions
         # col can be between 1 and height - 2
         doors = []
         random_key = [k3, k4, k8,]
         room_wall_list = [room_1_wall, room_2_wall, room_3_wall]
         color_list = [PALETTE.YELLOW, PALETTE.GREEN, PALETTE.BLUE]
-        for i, room_wall in enumerate(room_wall_list):
+        for i, room_wall_single in enumerate(room_wall_list):
             # row can be between 1 and height - 2
             # print(room_wall)
-            room_wall = jnp.where(room_wall > 0, 1, -1)
-            door_pos = random_positions(random_key[i], room_wall)
+            room_wall_single = jnp.where(room_wall_single > 0, 1, -1)
+            door_pos = random_positions(random_key[i], room_wall_single)
             doors.append(Door.create(
                 position=door_pos,
                 requires=jnp.asarray(i),
@@ -316,10 +315,10 @@ class Hi_Core_task_2(Environment):
                 # colour=random_colour(random_key[i]),
                 colour=color_list[i],
             ))
-            # wall_pos = jnp.delete(wall_pos, door_pos)
+            room_wall = room_wall.at[tuple(door_pos)].set(0)
 
-        walls = Wall.create(position=wall_pos)
-        print(wall_pos)
+        room_wall = jnp.where(room_wall != 0, -1, room_wall)
+        grid = room_wall
         
         # agent and goal
         if self.random_start:
@@ -361,7 +360,7 @@ class Hi_Core_task_2(Environment):
         keys = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *keys)
 
         entities = {
-            "wall": walls,
+            # "wall": walls,
             "door": doors,
             "player": player[None],
             "goal": goal[None],

@@ -83,7 +83,10 @@ class KeyCorridor(Environment):
             )
             doors.append(
                 Door.create(
-                    position=door_pos, requires=requires, colour=colour, open=open
+                    position=door_pos, 
+                    requires=requires, 
+                    colour=colour, 
+                    open=open
                 )
             )
             # right corridor, left wall

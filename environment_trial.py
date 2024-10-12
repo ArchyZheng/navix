@@ -6,8 +6,8 @@ import navix as nx
 import navix.environments.hi_core
 
 # Create the environment
-env = nx.make('Hi_Core_task_0', observation_fn=nx.observations.rgb)
-key = jax.random.PRNGKey(6)
+env = nx.make('Hi_Core_task_1', observation_fn=nx.observations.rgb)
+key = jax.random.PRNGKey(5)
 timestep = env.reset(key)
 
 def render(obs, title):

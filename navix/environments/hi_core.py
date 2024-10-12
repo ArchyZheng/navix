@@ -133,69 +133,72 @@ class Hi_Core_task_1(Environment):
         # col can be between 1 and height - 2
         doors = []
         doors_row_list = [3, 6]
+        random_key = [k3, k4]
         for i in range(2):
             door_row = jnp.asarray(doors_row_list[i])
             # row can be between 1 and height - 2
-            door_col = jax.random.randint(k3, (), 1, self.height - 1)  # row
+            door_col = jax.random.randint(random_key[i], (), 1, self.height - 1)  # row
             door_pos = jnp.asarray((door_row, door_col))
             doors.append(Door.create(
                 position=door_pos,
                 requires=jnp.asarray(3),
                 open=jnp.asarray(False),
-                colour=random_colour(k1),
+                colour=random_colour(random_key[i]),
             ))
 
-        # get rooms
-        first_room_mask = mask_by_coordinates(
-            grid, (jnp.asarray(self.height), door_col), jnp.less
-        )
-        first_room = jnp.where(first_room_mask, grid, -1)  # put walls where not mask
-        second_room_mask = mask_by_coordinates(
-            grid, (jnp.asarray(0), door_col), jnp.greater
-        )
-        second_room = jnp.where(second_room_mask, grid, -1)  # put walls where not mask
+        # walls = []
+        # wall positions
+        wall_position_final = []
+        for door in doors:
+            wall_rows = jnp.asarray([door.position[0]] * (self.width - 2))
+            # wall_cols = jnp.asarray([door_col] * (self.height - 2))
+            wall_cols = jnp.arange(1, self.width - 1)
+            wall_pos = jnp.stack((wall_rows, wall_cols), axis=1)
+            # remove wall where the door is
+            wall_pos = jnp.delete(
+                wall_pos, door.position[1] - 1, axis=0, assume_unique_indices=True
+            )
+            wall_position_final.append(wall_pos)
+            # wall_position_final = jnp.stack((wall_position_final, wall_pos))
+        wall_pos = jnp.concatenate(wall_position_final)
+        walls = Wall.create(position=wall_pos)
+        
 
-        # set player and goal pos
         if self.random_start:
-            player_pos = random_positions(k1, first_room)
-            player_dir = random_directions(k2)
-            goal_pos = random_positions(k2, second_room)
+            player_pos, goal_pos = random_positions(k1, grid, n=2)
+            direction = random_directions(k2, n=1)
         else:
-            player_pos = jnp.asarray([1, 1])
-            player_dir = jnp.asarray(0)
             goal_pos = jnp.asarray([self.height - 2, self.width - 2])
-
-        # spawn goal and player
+            player_pos = jnp.asarray([1, 1])
+            direction = jnp.asarray(0)
         player = Player.create(
-            position=player_pos, direction=player_dir, pocket=EMPTY_POCKET_ID
+            position=player_pos,
+            direction=direction,
+            pocket=EMPTY_POCKET_ID,
         )
-        goals = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
-
-        # spawn key
-        key_pos = random_positions(k2, first_room, exclude=player_pos)
-        keys = Key.create(position=key_pos, id=jnp.asarray(3), colour=PALETTE.YELLOW)
-
-        # remove the wall beneath the door
-        grid = grid.at[tuple(door_pos)].set(0)
+        # goal
+        goal = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
         doors = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *doors)
 
         entities = {
+            "door": doors,
             "player": player[None],
-            "key": keys[None],
-            "door": doors[None],
-            "goal": goals[None],
+            "goal": goal[None],
+            "wall": walls,
         }
 
+        # systems
         state = State(
             key=key,
             grid=grid,
             cache=cache or RenderingCache.init(grid),
             entities=entities,
         )
+
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
             observation=self.observation_fn(state),
-            action=jnp.asarray(-1, dtype=jnp.int32),
+            action=jnp.asarray(0, dtype=jnp.int32),
             reward=jnp.asarray(0.0, dtype=jnp.float32),
             step_type=jnp.asarray(0, dtype=jnp.int32),
             state=state,
